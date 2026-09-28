@@ -279,9 +279,20 @@ jobs:
 
       - name: Build Plugin 🧱
         uses: ./.github/actions/build-plugin
+        env:
+          CHZZK_BROKER_URL: ${{ vars.CHZZK_BROKER_URL }}
         with:
           target: x64
           config: ${{ needs.check-event.outputs.config }}
+
+      - name: Validate Release Configuration ☑️
+        if: fromJSON(needs.check-event.outputs.package)
+        env:
+          CHZZK_BROKER_URL: ${{ vars.CHZZK_BROKER_URL }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($Env:CHZZK_BROKER_URL)) {
+            throw 'Set the CHZZK_BROKER_URL repository variable before creating distribution artifacts.'
+          }
 
       - name: Package Plugin 📀
         uses: ./.github/actions/package-plugin

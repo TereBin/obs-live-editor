@@ -6,7 +6,9 @@
 !/build-aux
 !/cmake
 !/data
+!/installer
 !/src
+!/worker
 !.clang-format
 !.gersemirc
 !.gitignore
@@ -18,9 +20,13 @@
 
 # Exclude lock files
 *.lock.json
+!/worker/package-lock.json
 
 # Exclude macOS legacy resource forks
 .DS_Store
 
 # Exclude CMake build number cache
 /cmake/.CMakeBuildNumber
+.dev.vars
+.wrangler/
+worker/node_modules/

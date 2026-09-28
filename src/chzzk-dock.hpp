@@ -1,0 +1,71 @@
+#pragma once
+
+#include "chzzk-api-client.hpp"
+
+#include <QLineEdit>
+#include <QWidget>
+
+class QComboBox;
+class QLabel;
+class QPushButton;
+class QTimer;
+
+class CategoryLineEdit final : public QLineEdit {
+	Q_OBJECT
+
+public:
+	explicit CategoryLineEdit(QWidget *parent = nullptr) : QLineEdit(parent) {}
+	bool isComposing() const { return composing_; }
+
+signals:
+	void compositionChanged(bool composing);
+
+protected:
+	void inputMethodEvent(QInputMethodEvent *event) override;
+
+private:
+	bool composing_ = false;
+};
+
+class ChzzkDock final : public QWidget {
+	Q_OBJECT
+
+public:
+	explicit ChzzkDock(QWidget *parent = nullptr);
+
+private slots:
+	void updateLoginState(bool loggedIn);
+	void showSettings(const BroadcastSettings &settings);
+	void showCategories(const QString &query, const QVector<ChzzkCategory> &categories);
+	void applyChanges();
+	void clearCategory();
+	void showSuccess(const QString &message);
+	void showError(const QString &message);
+
+private:
+	void buildUi();
+	void connectUi();
+	void updateControls();
+	void scheduleCategorySearch();
+	void resetCategorySelection(bool removeCategory);
+	QStringList validatedTags(bool &valid) const;
+
+	ChzzkApiClient client_;
+	QLabel *statusLabel_ = nullptr;
+	QLabel *messageLabel_ = nullptr;
+	QPushButton *loginButton_ = nullptr;
+	QPushButton *logoutButton_ = nullptr;
+	QLineEdit *titleEdit_ = nullptr;
+	QComboBox *categoryCombo_ = nullptr;
+	CategoryLineEdit *categoryEdit_ = nullptr;
+	QPushButton *clearCategoryButton_ = nullptr;
+	QLineEdit *tagsEdit_ = nullptr;
+	QPushButton *refreshButton_ = nullptr;
+	QPushButton *applyButton_ = nullptr;
+	QTimer *categoryTimer_ = nullptr;
+	QString selectedCategoryId_;
+	QString selectedCategoryType_;
+	bool loggedIn_ = false;
+	bool busy_ = false;
+	bool removeCategory_ = false;
+};

@@ -111,3 +111,6 @@ runs:
         }
 
         .github/scripts/Package-Windows.ps1 @PackageArgs
+
+        choco install innosetup --yes --no-progress
+        installer/Build-Installer.ps1 -Configuration '${{ inputs.config }}'
