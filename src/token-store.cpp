@@ -20,8 +20,8 @@ QByteArray protect(const QByteArray &plain, QString &error)
 #ifdef _WIN32
 	DATA_BLOB input{static_cast<DWORD>(plain.size()), reinterpret_cast<BYTE *>(const_cast<char *>(plain.data()))};
 	DATA_BLOB output{};
-	if (!CryptProtectData(&input, L"OBS Live Editor tokens", nullptr, nullptr, nullptr,
-			       CRYPTPROTECT_UI_FORBIDDEN, &output)) {
+	if (!CryptProtectData(&input, L"OBS Live Editor tokens", nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN,
+			      &output)) {
 		error = QStringLiteral("Windows에서 로그인 정보를 암호화하지 못했습니다. (%1)").arg(GetLastError());
 		return {};
 	}

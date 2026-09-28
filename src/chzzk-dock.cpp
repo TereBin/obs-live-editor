@@ -17,7 +17,7 @@ namespace {
 constexpr int kCategoryTypeRole = Qt::UserRole + 1;
 constexpr int kCategoryIdRole = Qt::UserRole + 2;
 constexpr int kCategorySearchDelayMs = 350;
-}
+} // namespace
 
 void CategoryLineEdit::inputMethodEvent(QInputMethodEvent *event)
 {
@@ -54,9 +54,7 @@ void ChzzkDock::connectUi()
 		busy_ = busy;
 		updateControls();
 	});
-	connect(categoryTimer_, &QTimer::timeout, this, [this]() {
-		client_.searchCategories(categoryEdit_->text());
-	});
+	connect(categoryTimer_, &QTimer::timeout, this, [this]() { client_.searchCategories(categoryEdit_->text()); });
 	connect(categoryEdit_, &QLineEdit::textEdited, this, [this](const QString &) {
 		resetCategorySelection(false);
 		categoryCombo_->hidePopup();

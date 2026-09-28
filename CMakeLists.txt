@@ -61,10 +61,7 @@ target_sources(
 if(WIN32)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Crypt32)
   if(TARGET Qt6::QSchannelBackendPlugin)
-    install(
-      FILES "$<TARGET_FILE:Qt6::QSchannelBackendPlugin>"
-      DESTINATION "${CMAKE_PROJECT_NAME}/bin/64bit/tls"
-    )
+    install(FILES "$<TARGET_FILE:Qt6::QSchannelBackendPlugin>" DESTINATION "${CMAKE_PROJECT_NAME}/bin/64bit/tls")
   else()
     message(FATAL_ERROR "Qt Schannel TLS backend was not found")
   endif()

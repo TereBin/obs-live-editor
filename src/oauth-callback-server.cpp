@@ -52,11 +52,11 @@ void OAuthCallbackServer::acceptConnection()
 		}
 
 		const bool ok = !code.isEmpty() && oauthError.isEmpty();
-		const QByteArray body = ok
-					? QByteArray("<!doctype html><meta charset=utf-8><title>Login complete</title>"
-						     "<p>로그인이 완료되었습니다. 이 창을 닫고 OBS로 돌아가세요.</p>")
-					: QByteArray("<!doctype html><meta charset=utf-8><title>Login failed</title>"
-						     "<p>로그인에 실패했습니다. OBS에서 다시 시도해 주세요.</p>");
+		const QByteArray body =
+			ok ? QByteArray("<!doctype html><meta charset=utf-8><title>Login complete</title>"
+					"<p>로그인이 완료되었습니다. 이 창을 닫고 OBS로 돌아가세요.</p>")
+			   : QByteArray("<!doctype html><meta charset=utf-8><title>Login failed</title>"
+					"<p>로그인에 실패했습니다. OBS에서 다시 시도해 주세요.</p>");
 		const QByteArray response = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n"
 					    "Cache-Control: no-store\r\nConnection: close\r\nContent-Length: " +
 					    QByteArray::number(body.size()) + "\r\n\r\n" + body;

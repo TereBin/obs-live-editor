@@ -153,7 +153,8 @@ void ChzzkApiClient::beginLogin()
 
 		pendingState_ = object.value(QStringLiteral("state")).toString();
 		const QUrl authorizationUrl(object.value(QStringLiteral("authorizationUrl")).toString());
-		if (pendingState_.isEmpty() || !authorizationUrl.isValid() || !QDesktopServices::openUrl(authorizationUrl)) {
+		if (pendingState_.isEmpty() || !authorizationUrl.isValid() ||
+		    !QDesktopServices::openUrl(authorizationUrl)) {
 			callbackServer_.stop();
 			pendingState_.clear();
 			fail(QStringLiteral("치지직 로그인 페이지를 열지 못했습니다."));
@@ -199,8 +200,9 @@ bool ChzzkApiClient::saveTokens(const QJsonObject &rawObject)
 	if (!brokerToken.isEmpty())
 		updated.brokerToken = brokerToken;
 	const QJsonValue expiresValue = object.value(QStringLiteral("expiresIn"));
-	const qint64 expiresIn = expiresValue.isString() ? expiresValue.toString().toLongLong()
-							 : static_cast<qint64>(expiresValue.toDouble(kDefaultTokenLifetimeSeconds));
+	const qint64 expiresIn = expiresValue.isString()
+					 ? expiresValue.toString().toLongLong()
+					 : static_cast<qint64>(expiresValue.toDouble(kDefaultTokenLifetimeSeconds));
 	updated.expiresAt = QDateTime::currentSecsSinceEpoch() + expiresIn;
 	if (updated.isEmpty()) {
 		fail(QStringLiteral("토큰 응답에 필요한 값이 없습니다."));
@@ -337,8 +339,8 @@ void ChzzkApiClient::updateSettings(const BroadcastSettings &settings, bool remo
 
 		beginOperation();
 		QNetworkRequest request = authorizedRequest(apiUrl(QString::fromUtf8(kLiveSettingsPath)), token);
-		QNetworkReply *reply = network_.sendCustomRequest(
-			request, "PATCH", QJsonDocument(body).toJson(QJsonDocument::Compact));
+		QNetworkReply *reply = network_.sendCustomRequest(request, "PATCH",
+								  QJsonDocument(body).toJson(QJsonDocument::Compact));
 		connect(reply, &QNetworkReply::finished, this, [this, reply]() {
 			QString error;
 			responseObject(reply, error);
