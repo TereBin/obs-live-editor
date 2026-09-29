@@ -36,6 +36,8 @@ signals:
 	void categoriesLoaded(const QString &query, const QVector<ChzzkCategory> &categories);
 	void operationSucceeded(const QString &message);
 	void operationFailed(const QString &message);
+	void clientUpdateRequired(const QString &latestVersion, const QString &minimumVersion, const QString &level,
+				  const QString &message, const QUrl &releaseUrl);
 
 private:
 	using TokenCallback = std::function<void(const QString &)>;
@@ -43,8 +45,9 @@ private:
 	QUrl brokerUrl(const QString &path) const;
 	QUrl apiUrl(const QString &path) const;
 	QNetworkRequest jsonRequest(const QUrl &url) const;
+	QNetworkRequest brokerRequest(const QString &path, const QString &token = {}) const;
 	QNetworkRequest authorizedRequest(const QUrl &url, const QString &token) const;
-	QJsonObject responseObject(QNetworkReply *reply, QString &error) const;
+	QJsonObject responseObject(QNetworkReply *reply, QString &error);
 	void exchangeAuthorizationCode(const QString &code, const QString &state);
 	void ensureAccessToken(TokenCallback callback);
 	void refreshAccessToken();

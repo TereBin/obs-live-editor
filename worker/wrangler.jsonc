@@ -2,5 +2,12 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "obs-live-editor-auth",
   "main": "src/index.mjs",
-  "compatibility_date": "2026-09-01"
+  "compatibility_date": "2026-09-01",
+  "vars": {
+    "MINIMUM_CLIENT_VERSION": "0.1.0",
+    "LATEST_CLIENT_VERSION": "0.2.0",
+    "CLIENT_UPDATE_LEVEL": "optional",
+    "CLIENT_UPDATE_MESSAGE": "새 버전을 사용할 수 있습니다.",
+    "CLIENT_RELEASE_URL": "https://github.com/TereBin/obs-live-editor-releases/releases/latest"
+  }
 }

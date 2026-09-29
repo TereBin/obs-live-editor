@@ -56,6 +56,9 @@ target_sources(
     src/plugin-main.cpp
     src/token-store.cpp
     src/token-store.hpp
+    src/update-checker.cpp
+    src/update-checker.hpp
+    src/update-info.hpp
 )
 
 if(WIN32)

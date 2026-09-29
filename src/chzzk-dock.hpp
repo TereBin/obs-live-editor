@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chzzk-api-client.hpp"
+#include "update-checker.hpp"
 
 #include <QLineEdit>
 #include <QWidget>
@@ -41,6 +42,7 @@ private slots:
 	void clearCategory();
 	void showSuccess(const QString &message);
 	void showError(const QString &message);
+	void showUpdate(const UpdateInfo &info);
 
 private:
 	void buildUi();
@@ -48,11 +50,17 @@ private:
 	void updateControls();
 	void scheduleCategorySearch();
 	void resetCategorySelection(bool removeCategory);
+	void openUpdatePage();
 	QStringList validatedTags(bool &valid) const;
 
 	ChzzkApiClient client_;
+	UpdateChecker updateChecker_;
 	QLabel *statusLabel_ = nullptr;
 	QLabel *messageLabel_ = nullptr;
+	QWidget *updateBanner_ = nullptr;
+	QLabel *updateLabel_ = nullptr;
+	QPushButton *downloadUpdateButton_ = nullptr;
+	QPushButton *skipUpdateButton_ = nullptr;
 	QPushButton *loginButton_ = nullptr;
 	QPushButton *logoutButton_ = nullptr;
 	QLineEdit *titleEdit_ = nullptr;
@@ -65,7 +73,10 @@ private:
 	QTimer *categoryTimer_ = nullptr;
 	QString selectedCategoryId_;
 	QString selectedCategoryType_;
+	UpdateInfo pendingUpdate_;
+	QString promptedUpdateVersion_;
 	bool loggedIn_ = false;
 	bool busy_ = false;
+	bool updateRequired_ = false;
 	bool removeCategory_ = false;
 };

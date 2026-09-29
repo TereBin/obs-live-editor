@@ -1,5 +1,7 @@
 const CHZZK_API = "https://openapi.chzzk.naver.com";
 const CHZZK_AUTHORIZE = "https://chzzk.naver.com/account-interlock";
+const DEFAULT_CLIENT_VERSION = "0.1.0";
+const DEFAULT_RELEASE_URL = "https://github.com/TereBin/obs-live-editor-releases/releases/latest";
 const encoder = new TextEncoder();
 
 function cleanEnvironmentValue(value) {
@@ -66,6 +68,35 @@ export async function verifySignedValue(value, secret, purpose, now = Date.now()
 function bearerToken(request) {
   const authorization = request.headers.get("authorization") ?? "";
   return authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+}
+
+function versionParts(version) {
+  if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) return null;
+  return version.split(".").map(Number);
+}
+
+export function compareVersions(left, right) {
+  const leftParts = versionParts(left);
+  const rightParts = versionParts(right);
+  if (!leftParts || !rightParts) return null;
+  for (let index = 0; index < 3; index += 1) {
+    if (leftParts[index] !== rightParts[index]) return leftParts[index] < rightParts[index] ? -1 : 1;
+  }
+  return 0;
+}
+
+function clientUpdateResponse(request, config) {
+  const clientVersion = cleanEnvironmentValue(request.headers.get("x-obs-live-editor-version")) || DEFAULT_CLIENT_VERSION;
+  const comparison = compareVersions(clientVersion, config.MINIMUM_CLIENT_VERSION);
+  if (comparison !== null && comparison >= 0) return null;
+  return json({
+    code: "CLIENT_UPDATE_REQUIRED",
+    latestVersion: config.LATEST_CLIENT_VERSION,
+    minimumVersion: config.MINIMUM_CLIENT_VERSION,
+    level: config.CLIENT_UPDATE_LEVEL === "security" ? "security" : "required",
+    message: config.CLIENT_UPDATE_MESSAGE || "This version is no longer supported. Please update the plugin.",
+    releaseUrl: config.CLIENT_RELEASE_URL,
+  }, 426);
 }
 
 async function parseJson(request) {
@@ -192,9 +223,19 @@ export default {
       CHZZK_CLIENT_SECRET: cleanEnvironmentValue(env.CHZZK_CLIENT_SECRET),
       CHZZK_REDIRECT_URI: cleanEnvironmentValue(env.CHZZK_REDIRECT_URI),
       STATE_SECRET: cleanEnvironmentValue(env.STATE_SECRET),
+      MINIMUM_CLIENT_VERSION: cleanEnvironmentValue(env.MINIMUM_CLIENT_VERSION) || DEFAULT_CLIENT_VERSION,
+      LATEST_CLIENT_VERSION: cleanEnvironmentValue(env.LATEST_CLIENT_VERSION) || DEFAULT_CLIENT_VERSION,
+      CLIENT_UPDATE_LEVEL: cleanEnvironmentValue(env.CLIENT_UPDATE_LEVEL) || "optional",
+      CLIENT_UPDATE_MESSAGE: cleanEnvironmentValue(env.CLIENT_UPDATE_MESSAGE),
+      CLIENT_RELEASE_URL: cleanEnvironmentValue(env.CLIENT_RELEASE_URL) || DEFAULT_RELEASE_URL,
     };
     if (!config.CHZZK_CLIENT_ID || !config.CHZZK_CLIENT_SECRET || !config.CHZZK_REDIRECT_URI || !config.STATE_SECRET) {
       return json({ message: "Worker is not configured" }, 503);
+    }
+    const supportedRoute = ["/oauth/start", "/oauth/token", "/oauth/revoke", "/categories"].includes(url.pathname);
+    if (supportedRoute) {
+      const updateResponse = clientUpdateResponse(request, config);
+      if (updateResponse) return updateResponse;
     }
     if (request.method === "GET" && url.pathname === "/oauth/start") return startAuthorization(config);
     if (request.method === "POST" && url.pathname === "/oauth/token") return exchangeToken(request, config);

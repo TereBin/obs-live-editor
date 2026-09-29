@@ -1,5 +1,7 @@
 #include "chzzk-api-client.hpp"
 
+#include <plugin-support.h>
+
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QJsonArray>
@@ -103,6 +105,15 @@ QNetworkRequest ChzzkApiClient::jsonRequest(const QUrl &url) const
 	return request;
 }
 
+QNetworkRequest ChzzkApiClient::brokerRequest(const QString &path, const QString &token) const
+{
+	QNetworkRequest request = jsonRequest(brokerUrl(path));
+	request.setRawHeader("X-OBS-Live-Editor-Version", QByteArray(PLUGIN_VERSION));
+	if (!token.isEmpty())
+		request.setRawHeader("Authorization", "Bearer " + token.toUtf8());
+	return request;
+}
+
 QNetworkRequest ChzzkApiClient::authorizedRequest(const QUrl &url, const QString &token) const
 {
 	QNetworkRequest request = jsonRequest(url);
@@ -110,12 +121,19 @@ QNetworkRequest ChzzkApiClient::authorizedRequest(const QUrl &url, const QString
 	return request;
 }
 
-QJsonObject ChzzkApiClient::responseObject(QNetworkReply *reply, QString &error) const
+QJsonObject ChzzkApiClient::responseObject(QNetworkReply *reply, QString &error)
 {
 	const QByteArray body = reply->readAll();
 	QJsonParseError parseError;
 	const QJsonDocument document = QJsonDocument::fromJson(body, &parseError);
 	const QJsonObject object = document.isObject() ? document.object() : QJsonObject{};
+	if (object.value(QStringLiteral("code")).toString() == QStringLiteral("CLIENT_UPDATE_REQUIRED")) {
+		emit clientUpdateRequired(object.value(QStringLiteral("latestVersion")).toString(),
+					  object.value(QStringLiteral("minimumVersion")).toString(),
+					  object.value(QStringLiteral("level")).toString(),
+					  object.value(QStringLiteral("message")).toString(),
+					  QUrl(object.value(QStringLiteral("releaseUrl")).toString()));
+	}
 	if (reply->error() != QNetworkReply::NoError) {
 		error = apiError(object, reply->errorString());
 		return object;
@@ -139,7 +157,7 @@ void ChzzkApiClient::beginLogin()
 	}
 
 	beginOperation();
-	QNetworkReply *reply = network_.get(jsonRequest(brokerUrl(QStringLiteral("/oauth/start"))));
+	QNetworkReply *reply = network_.get(brokerRequest(QStringLiteral("/oauth/start")));
 	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
 		QString error;
 		const QJsonObject object = responseObject(reply, error);
@@ -168,7 +186,7 @@ void ChzzkApiClient::exchangeAuthorizationCode(const QString &code, const QStrin
 	const QJsonObject body{{QStringLiteral("grantType"), QStringLiteral("authorization_code")},
 			       {QStringLiteral("code"), code},
 			       {QStringLiteral("state"), state}};
-	QNetworkReply *reply = network_.post(jsonRequest(brokerUrl(QStringLiteral("/oauth/token"))),
+	QNetworkReply *reply = network_.post(brokerRequest(QStringLiteral("/oauth/token")),
 					     QJsonDocument(body).toJson(QJsonDocument::Compact));
 	connect(reply, &QNetworkReply::finished, this, [this, reply]() {
 		QString error;
@@ -240,7 +258,7 @@ void ChzzkApiClient::refreshAccessToken()
 	beginOperation();
 	const QJsonObject body{{QStringLiteral("grantType"), QStringLiteral("refresh_token")},
 			       {QStringLiteral("refreshToken"), tokens_.refreshToken}};
-	QNetworkReply *reply = network_.post(jsonRequest(brokerUrl(QStringLiteral("/oauth/token"))),
+	QNetworkReply *reply = network_.post(brokerRequest(QStringLiteral("/oauth/token")),
 					     QJsonDocument(body).toJson(QJsonDocument::Compact));
 	connect(reply, &QNetworkReply::finished, this, [this, reply]() { finishTokenRequest(reply); });
 }
@@ -302,7 +320,8 @@ void ChzzkApiClient::searchCategories(const QString &query)
 	QUrlQuery urlQuery;
 	urlQuery.addQueryItem(QStringLiteral("query"), requestedQuery);
 	url.setQuery(urlQuery);
-	QNetworkRequest request = authorizedRequest(url, tokens_.brokerToken);
+	QNetworkRequest request = brokerRequest(QStringLiteral("/categories"), tokens_.brokerToken);
+	request.setUrl(url);
 	QNetworkReply *reply = network_.get(request);
 	categoryReply_ = reply;
 	connect(reply, &QNetworkReply::finished, this, [this, reply, requestedQuery]() {
@@ -363,7 +382,7 @@ void ChzzkApiClient::logout()
 	if (!tokens_.accessToken.isEmpty()) {
 		const QJsonObject body{{QStringLiteral("token"), tokens_.accessToken},
 				       {QStringLiteral("tokenTypeHint"), QStringLiteral("access_token")}};
-		QNetworkReply *reply = network_.post(jsonRequest(brokerUrl(QStringLiteral("/oauth/revoke"))),
+		QNetworkReply *reply = network_.post(brokerRequest(QStringLiteral("/oauth/revoke")),
 						     QJsonDocument(body).toJson(QJsonDocument::Compact));
 		connect(reply, &QNetworkReply::finished, reply, &QObject::deleteLater);
 	}

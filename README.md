@@ -41,6 +41,8 @@ OBS Studio 안에서 치지직 방송 제목, 카테고리, 태그를 조회하�
 - Windows DPAPI를 이용한 로컬 토큰 암호화
 - Windows Schannel 기반 HTTPS 통신
 - 로그아웃 시 치지직 토큰 폐기 요청
+- GitHub Releases 기반 업데이트 확인과 중요도별 알림
+- 최소 지원 버전 미만 클라이언트에 대한 필수 업데이트 안내
 
 ## 보안과 개인정보
 
@@ -90,6 +92,16 @@ npx wrangler deploy
 ```powershell
 ./worker/Configure-Secrets.ps1 -WorkerUrl https://YOUR-WORKER.workers.dev
 ```
+
+Worker의 `wrangler.jsonc`에는 다음 공개 업데이트 정책이 있습니다.
+
+- `MINIMUM_CLIENT_VERSION`: Worker가 허용하는 최소 버전
+- `LATEST_CLIENT_VERSION`: 사용자에게 안내할 최신 버전
+- `CLIENT_UPDATE_LEVEL`: `optional`, `recommended`, `required`, `security` 중 하나
+- `CLIENT_UPDATE_MESSAGE`: 업데이트 안내 문구
+- `CLIENT_RELEASE_URL`: 다운로드 페이지
+
+호환성이 깨지는 변경을 배포할 때는 새 설치 파일과 `update-manifest.json`을 먼저 공개한 뒤 Worker의 최소 버전을 올려 배포하세요. 최소 버전 미만 요청에는 HTTP `426 Upgrade Required`가 반환됩니다.
 
 ## 설치 프로그램 생성
 

@@ -1,11 +1,13 @@
 #include "chzzk-dock.hpp"
 
 #include <QComboBox>
+#include <QDesktopServices>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QInputMethodEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSignalBlocker>
@@ -17,6 +19,7 @@ namespace {
 constexpr int kCategoryTypeRole = Qt::UserRole + 1;
 constexpr int kCategoryIdRole = Qt::UserRole + 2;
 constexpr int kCategorySearchDelayMs = 350;
+constexpr auto kDefaultReleaseUrl = "https://github.com/TereBin/obs-live-editor-releases/releases/latest";
 } // namespace
 
 void CategoryLineEdit::inputMethodEvent(QInputMethodEvent *event)
@@ -29,13 +32,14 @@ void CategoryLineEdit::inputMethodEvent(QInputMethodEvent *event)
 		emit compositionChanged(composing_);
 }
 
-ChzzkDock::ChzzkDock(QWidget *parent) : QWidget(parent), client_(this)
+ChzzkDock::ChzzkDock(QWidget *parent) : QWidget(parent), client_(this), updateChecker_(this)
 {
 	buildUi();
 	connectUi();
 	updateLoginState(client_.isLoggedIn());
 	if (client_.isLoggedIn())
 		QTimer::singleShot(0, &client_, &ChzzkApiClient::loadSettings);
+	QTimer::singleShot(5000, &updateChecker_, [this]() { updateChecker_.checkForUpdates(); });
 }
 
 void ChzzkDock::connectUi()
@@ -50,6 +54,24 @@ void ChzzkDock::connectUi()
 	connect(&client_, &ChzzkApiClient::categoriesLoaded, this, &ChzzkDock::showCategories);
 	connect(&client_, &ChzzkApiClient::operationSucceeded, this, &ChzzkDock::showSuccess);
 	connect(&client_, &ChzzkApiClient::operationFailed, this, &ChzzkDock::showError);
+	connect(&client_, &ChzzkApiClient::clientUpdateRequired, this,
+		[this](const QString &latestVersion, const QString &minimumVersion, const QString &level,
+		       const QString &message, const QUrl &releaseUrl) {
+			UpdateInfo info;
+			info.latestVersion = latestVersion.isEmpty() ? minimumVersion : latestVersion;
+			info.minimumVersion = minimumVersion;
+			info.message = message;
+			info.releaseUrl = releaseUrl;
+			info.level = level == QStringLiteral("security") ? UpdateLevel::Security
+									 : UpdateLevel::Required;
+			showUpdate(info);
+		});
+	connect(&updateChecker_, &UpdateChecker::updateAvailable, this, &ChzzkDock::showUpdate);
+	connect(downloadUpdateButton_, &QPushButton::clicked, this, &ChzzkDock::openUpdatePage);
+	connect(skipUpdateButton_, &QPushButton::clicked, this, [this]() {
+		updateChecker_.skipVersion(pendingUpdate_.latestVersion);
+		updateBanner_->hide();
+	});
 	connect(&client_, &ChzzkApiClient::busyChanged, this, [this](bool busy) {
 		busy_ = busy;
 		updateControls();
@@ -89,6 +111,20 @@ void ChzzkDock::buildUi()
 	accountRow->addWidget(loginButton_);
 	accountRow->addWidget(logoutButton_);
 	root->addLayout(accountRow);
+
+	updateBanner_ = new QWidget(this);
+	auto *updateRow = new QHBoxLayout(updateBanner_);
+	updateRow->setContentsMargins(0, 0, 0, 0);
+	updateLabel_ = new QLabel(updateBanner_);
+	updateLabel_->setWordWrap(true);
+	updateLabel_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+	downloadUpdateButton_ = new QPushButton(QStringLiteral("다운로드"), updateBanner_);
+	skipUpdateButton_ = new QPushButton(QStringLiteral("건너뛰기"), updateBanner_);
+	updateRow->addWidget(updateLabel_, 1);
+	updateRow->addWidget(downloadUpdateButton_);
+	updateRow->addWidget(skipUpdateButton_);
+	updateBanner_->hide();
+	root->addWidget(updateBanner_);
 
 	auto *form = new QFormLayout();
 	form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
@@ -141,7 +177,9 @@ void ChzzkDock::buildUi()
 void ChzzkDock::updateLoginState(bool loggedIn)
 {
 	loggedIn_ = loggedIn;
-	statusLabel_->setText(loggedIn ? QStringLiteral("치지직 연결됨") : QStringLiteral("로그인 필요"));
+	statusLabel_->setText(updateRequired_ ? QStringLiteral("업데이트 필요")
+			      : loggedIn      ? QStringLiteral("치지직 연결됨")
+					      : QStringLiteral("로그인 필요"));
 	loginButton_->setVisible(!loggedIn);
 	logoutButton_->setVisible(loggedIn);
 	updateControls();
@@ -155,9 +193,10 @@ void ChzzkDock::updateLoginState(bool loggedIn)
 
 void ChzzkDock::updateControls()
 {
-	const bool canEdit = loggedIn_ && !busy_;
-	loginButton_->setEnabled(!loggedIn_ && !busy_);
-	logoutButton_->setEnabled(loggedIn_ && !busy_);
+	const bool available = !busy_ && !updateRequired_;
+	const bool canEdit = loggedIn_ && available;
+	loginButton_->setEnabled(!loggedIn_ && available);
+	logoutButton_->setEnabled(loggedIn_ && available);
 	titleEdit_->setEnabled(canEdit);
 	categoryCombo_->setEnabled(canEdit);
 	clearCategoryButton_->setEnabled(canEdit);
@@ -284,4 +323,49 @@ void ChzzkDock::showError(const QString &message)
 {
 	messageLabel_->setStyleSheet(QStringLiteral("color: #d94b4b;"));
 	messageLabel_->setText(message);
+}
+
+void ChzzkDock::showUpdate(const UpdateInfo &info)
+{
+	pendingUpdate_ = info;
+	if (pendingUpdate_.releaseUrl.scheme() != QStringLiteral("https") ||
+	    pendingUpdate_.releaseUrl.host() != QStringLiteral("github.com")) {
+		pendingUpdate_.releaseUrl = QUrl(QString::fromUtf8(kDefaultReleaseUrl));
+	}
+	updateRequired_ = info.blocksUse();
+	updateControls();
+
+	QString prefix = QStringLiteral("새 버전 %1").arg(info.latestVersion);
+	if (info.level == UpdateLevel::Recommended)
+		prefix = QStringLiteral("권장 업데이트 %1").arg(info.latestVersion);
+	else if (info.level == UpdateLevel::Required)
+		prefix = QStringLiteral("필수 업데이트 %1").arg(info.latestVersion);
+	else if (info.level == UpdateLevel::Security)
+		prefix = QStringLiteral("보안 업데이트 %1").arg(info.latestVersion);
+	updateLabel_->setText(info.message.isEmpty() ? prefix : QStringLiteral("%1: %2").arg(prefix, info.message));
+	skipUpdateButton_->setVisible(!info.blocksUse());
+	updateBanner_->show();
+
+	if (!info.blocksUse() || promptedUpdateVersion_ == info.latestVersion)
+		return;
+	promptedUpdateVersion_ = info.latestVersion;
+	statusLabel_->setText(QStringLiteral("업데이트 필요"));
+	const QString title = info.level == UpdateLevel::Security ? QStringLiteral("보안 업데이트 필요")
+								  : QStringLiteral("필수 업데이트 필요");
+	const QString detail =
+		info.message.isEmpty()
+			? QStringLiteral(
+				  "이 버전은 더 이상 지원되지 않습니다. 계속 사용하려면 %1 이상으로 업데이트하세요.")
+				  .arg(info.minimumVersion)
+			: info.message;
+	if (QMessageBox::critical(this, title, detail, QMessageBox::Open | QMessageBox::Close, QMessageBox::Open) ==
+	    QMessageBox::Open) {
+		openUpdatePage();
+	}
+}
+
+void ChzzkDock::openUpdatePage()
+{
+	if (pendingUpdate_.releaseUrl.isValid())
+		QDesktopServices::openUrl(pendingUpdate_.releaseUrl);
 }
