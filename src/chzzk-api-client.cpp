@@ -15,6 +15,7 @@
 
 namespace {
 constexpr auto kApiBase = "https://openapi.chzzk.naver.com";
+constexpr auto kUserProfilePath = "/open/v1/users/me";
 constexpr auto kLiveSettingsPath = "/open/v1/lives/setting";
 constexpr qint64 kDefaultTokenLifetimeSeconds = 86400;
 constexpr qint64 kTokenRefreshMarginSeconds = 60;
@@ -64,7 +65,8 @@ ChzzkApiClient::ChzzkApiClient(QObject *parent) : QObject(parent)
 	if (!tokenStore_.load(tokens_, loadError)) {
 		tokenStore_.clear();
 		if (!loadError.isEmpty())
-			QMetaObject::invokeMethod(this, [this, loadError]() { fail(loadError); }, Qt::QueuedConnection);
+			QMetaObject::invokeMethod(
+				this, [this, loadError]() { fail(loadError); }, Qt::QueuedConnection);
 	}
 
 	connect(&callbackServer_, &OAuthCallbackServer::callbackReceived, this,
@@ -80,7 +82,8 @@ ChzzkApiClient::ChzzkApiClient(QObject *parent) : QObject(parent)
 			exchangeAuthorizationCode(code, state);
 		});
 
-	QMetaObject::invokeMethod(this, [this]() { emit loginStateChanged(isLoggedIn()); }, Qt::QueuedConnection);
+	QMetaObject::invokeMethod(
+		this, [this]() { emit loginStateChanged(isLoggedIn()); }, Qt::QueuedConnection);
 }
 
 QUrl ChzzkApiClient::brokerUrl(const QString &path) const
@@ -202,6 +205,7 @@ void ChzzkApiClient::exchangeAuthorizationCode(const QString &code, const QStrin
 			return;
 		emit loginStateChanged(true);
 		emit operationSucceeded(QStringLiteral("치지직에 로그인했습니다."));
+		loadUserProfile();
 		loadSettings();
 	});
 }
@@ -288,11 +292,34 @@ void ChzzkApiClient::finishTokenRequest(QNetworkReply *reply)
 
 void ChzzkApiClient::loadSettings()
 {
+	loadSettingsInternal(false);
+}
+
+void ChzzkApiClient::loadUserProfile()
+{
 	ensureAccessToken([this](const QString &token) {
+		QNetworkRequest request = authorizedRequest(apiUrl(QString::fromUtf8(kUserProfilePath)), token);
+		QNetworkReply *reply = network_.get(request);
+		connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+			QString error;
+			const QJsonObject object = unwrap(responseObject(reply, error));
+			reply->deleteLater();
+			if (!error.isEmpty())
+				return;
+			const QString channelName = object.value(QStringLiteral("channelName")).toString().trimmed();
+			if (!channelName.isEmpty())
+				emit userProfileLoaded(channelName);
+		});
+	});
+}
+
+void ChzzkApiClient::loadSettingsInternal(bool afterApply)
+{
+	ensureAccessToken([this, afterApply](const QString &token) {
 		beginOperation();
 		QNetworkRequest request = authorizedRequest(apiUrl(QString::fromUtf8(kLiveSettingsPath)), token);
 		QNetworkReply *reply = network_.get(request);
-		connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+		connect(reply, &QNetworkReply::finished, this, [this, reply, afterApply]() {
 			QString error;
 			const QJsonObject object = unwrap(responseObject(reply, error));
 			reply->deleteLater();
@@ -302,7 +329,7 @@ void ChzzkApiClient::loadSettings()
 				return;
 			}
 
-			emit settingsLoaded(broadcastSettingsFrom(object));
+			emit settingsLoaded(broadcastSettingsFrom(object), afterApply);
 		});
 	});
 }
@@ -370,7 +397,7 @@ void ChzzkApiClient::updateSettings(const BroadcastSettings &settings, bool remo
 				return;
 			}
 			emit operationSucceeded(QStringLiteral("방송 정보를 적용했습니다."));
-			loadSettings();
+			loadSettingsInternal(true);
 		});
 	});
 }

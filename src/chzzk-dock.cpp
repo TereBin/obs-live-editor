@@ -10,6 +10,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QResizeEvent>
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QTimer>
@@ -19,6 +20,7 @@ namespace {
 constexpr int kCategoryTypeRole = Qt::UserRole + 1;
 constexpr int kCategoryIdRole = Qt::UserRole + 2;
 constexpr int kCategorySearchDelayMs = 350;
+constexpr int kCompactLayoutWidth = 420;
 constexpr auto kDefaultReleaseUrl = "https://github.com/TereBin/obs-live-editor-releases/releases/latest";
 } // namespace
 
@@ -37,8 +39,10 @@ ChzzkDock::ChzzkDock(QWidget *parent) : QWidget(parent), client_(this), updateCh
 	buildUi();
 	connectUi();
 	updateLoginState(client_.isLoggedIn());
-	if (client_.isLoggedIn())
+	if (client_.isLoggedIn()) {
+		QTimer::singleShot(0, &client_, &ChzzkApiClient::loadUserProfile);
 		QTimer::singleShot(0, &client_, &ChzzkApiClient::loadSettings);
+	}
 	QTimer::singleShot(5000, &updateChecker_, [this]() { updateChecker_.checkForUpdates(); });
 }
 
@@ -50,6 +54,7 @@ void ChzzkDock::connectUi()
 	connect(applyButton_, &QPushButton::clicked, this, &ChzzkDock::applyChanges);
 	connect(clearCategoryButton_, &QPushButton::clicked, this, &ChzzkDock::clearCategory);
 	connect(&client_, &ChzzkApiClient::loginStateChanged, this, &ChzzkDock::updateLoginState);
+	connect(&client_, &ChzzkApiClient::userProfileLoaded, this, &ChzzkDock::showUserProfile);
 	connect(&client_, &ChzzkApiClient::settingsLoaded, this, &ChzzkDock::showSettings);
 	connect(&client_, &ChzzkApiClient::categoriesLoaded, this, &ChzzkDock::showCategories);
 	connect(&client_, &ChzzkApiClient::operationSucceeded, this, &ChzzkDock::showSuccess);
@@ -102,35 +107,35 @@ void ChzzkDock::buildUi()
 	root->setContentsMargins(12, 12, 12, 12);
 	root->setSpacing(10);
 
-	auto *accountRow = new QHBoxLayout();
+	accountLayout_ = new QHBoxLayout();
 	statusLabel_ = new QLabel(this);
 	statusLabel_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 	loginButton_ = new QPushButton(QStringLiteral("로그인"), this);
 	logoutButton_ = new QPushButton(QStringLiteral("로그아웃"), this);
-	accountRow->addWidget(statusLabel_);
-	accountRow->addWidget(loginButton_);
-	accountRow->addWidget(logoutButton_);
-	root->addLayout(accountRow);
+	accountLayout_->addWidget(statusLabel_);
+	accountLayout_->addWidget(loginButton_);
+	accountLayout_->addWidget(logoutButton_);
+	root->addLayout(accountLayout_);
 
 	updateBanner_ = new QWidget(this);
-	auto *updateRow = new QHBoxLayout(updateBanner_);
-	updateRow->setContentsMargins(0, 0, 0, 0);
+	updateLayout_ = new QHBoxLayout(updateBanner_);
+	updateLayout_->setContentsMargins(0, 0, 0, 0);
 	updateLabel_ = new QLabel(updateBanner_);
 	updateLabel_->setWordWrap(true);
 	updateLabel_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 	downloadUpdateButton_ = new QPushButton(QStringLiteral("다운로드"), updateBanner_);
 	skipUpdateButton_ = new QPushButton(QStringLiteral("건너뛰기"), updateBanner_);
-	updateRow->addWidget(updateLabel_, 1);
-	updateRow->addWidget(downloadUpdateButton_);
-	updateRow->addWidget(skipUpdateButton_);
+	updateLayout_->addWidget(updateLabel_, 1);
+	updateLayout_->addWidget(downloadUpdateButton_);
+	updateLayout_->addWidget(skipUpdateButton_);
 	updateBanner_->hide();
 	root->addWidget(updateBanner_);
 
-	auto *form = new QFormLayout();
-	form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+	formLayout_ = new QFormLayout();
+	formLayout_->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 	titleEdit_ = new QLineEdit(this);
 	titleEdit_->setPlaceholderText(QStringLiteral("방송 제목"));
-	form->addRow(QStringLiteral("제목"), titleEdit_);
+	formLayout_->addRow(QStringLiteral("제목"), titleEdit_);
 
 	auto *categoryRow = new QHBoxLayout();
 	categoryCombo_ = new QComboBox(this);
@@ -147,12 +152,12 @@ void ChzzkDock::buildUi()
 	clearCategoryButton_->setFixedWidth(34);
 	categoryRow->addWidget(categoryCombo_, 1);
 	categoryRow->addWidget(clearCategoryButton_);
-	form->addRow(QStringLiteral("카테고리"), categoryRow);
+	formLayout_->addRow(QStringLiteral("카테고리"), categoryRow);
 
 	tagsEdit_ = new QLineEdit(this);
 	tagsEdit_->setPlaceholderText(QStringLiteral("쉼표로 구분"));
-	form->addRow(QStringLiteral("태그"), tagsEdit_);
-	root->addLayout(form);
+	formLayout_->addRow(QStringLiteral("태그"), tagsEdit_);
+	root->addLayout(formLayout_);
 
 	messageLabel_ = new QLabel(this);
 	messageLabel_->setWordWrap(true);
@@ -160,35 +165,44 @@ void ChzzkDock::buildUi()
 	root->addWidget(messageLabel_);
 
 	root->addStretch(1);
-	auto *actionRow = new QHBoxLayout();
+	actionLayout_ = new QHBoxLayout();
 	refreshButton_ = new QPushButton(QStringLiteral("새로고침"), this);
 	refreshButton_->setIcon(style()->standardIcon(QStyle::SP_BrowserReload));
 	applyButton_ = new QPushButton(QStringLiteral("적용"), this);
 	applyButton_->setDefault(true);
-	actionRow->addWidget(refreshButton_);
-	actionRow->addWidget(applyButton_);
-	root->addLayout(actionRow);
+	actionLayout_->addWidget(refreshButton_);
+	actionLayout_->addWidget(applyButton_);
+	root->addLayout(actionLayout_);
 
 	categoryTimer_ = new QTimer(this);
 	categoryTimer_->setSingleShot(true);
 	categoryTimer_->setInterval(kCategorySearchDelayMs);
+	updateResponsiveLayout();
 }
 
 void ChzzkDock::updateLoginState(bool loggedIn)
 {
 	loggedIn_ = loggedIn;
-	statusLabel_->setText(updateRequired_ ? QStringLiteral("업데이트 필요")
-			      : loggedIn      ? QStringLiteral("치지직 연결됨")
-					      : QStringLiteral("로그인 필요"));
+	statusLabel_->setText(updateRequired_                       ? QStringLiteral("업데이트 필요")
+			      : loggedIn && !channelName_.isEmpty() ? QStringLiteral("채널: %1").arg(channelName_)
+			      : loggedIn                            ? QStringLiteral("치지직 연결됨")
+								    : QStringLiteral("로그인 필요"));
 	loginButton_->setVisible(!loggedIn);
 	logoutButton_->setVisible(loggedIn);
 	updateControls();
 	if (!loggedIn) {
+		channelName_.clear();
 		titleEdit_->clear();
 		categoryCombo_->clear();
 		tagsEdit_->clear();
 		resetCategorySelection(false);
 	}
+}
+
+void ChzzkDock::showUserProfile(const QString &channelName)
+{
+	channelName_ = channelName;
+	updateLoginState(loggedIn_);
 }
 
 void ChzzkDock::updateControls()
@@ -221,7 +235,7 @@ void ChzzkDock::resetCategorySelection(bool removeCategory)
 	removeCategory_ = removeCategory;
 }
 
-void ChzzkDock::showSettings(const BroadcastSettings &settings)
+void ChzzkDock::showSettings(const BroadcastSettings &settings, bool afterApply)
 {
 	titleEdit_->setText(settings.title);
 	selectedCategoryId_ = settings.categoryId;
@@ -238,7 +252,26 @@ void ChzzkDock::showSettings(const BroadcastSettings &settings)
 		}
 	}
 	tagsEdit_->setText(settings.tags.join(QStringLiteral(", ")));
-	showSuccess(QStringLiteral("방송 정보를 불러왔습니다."));
+	showSuccess(afterApply ? QStringLiteral("방송 정보를 적용했습니다.")
+			       : QStringLiteral("방송 정보를 불러왔습니다."));
+}
+
+void ChzzkDock::resizeEvent(QResizeEvent *event)
+{
+	QWidget::resizeEvent(event);
+	updateResponsiveLayout();
+}
+
+void ChzzkDock::updateResponsiveLayout()
+{
+	if (!accountLayout_ || !updateLayout_ || !actionLayout_ || !formLayout_)
+		return;
+	const bool compact = width() < kCompactLayoutWidth;
+	const QBoxLayout::Direction direction = compact ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight;
+	accountLayout_->setDirection(direction);
+	updateLayout_->setDirection(direction);
+	actionLayout_->setDirection(direction);
+	formLayout_->setRowWrapPolicy(compact ? QFormLayout::WrapAllRows : QFormLayout::DontWrapRows);
 }
 
 void ChzzkDock::showCategories(const QString &query, const QVector<ChzzkCategory> &categories)

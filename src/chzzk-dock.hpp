@@ -7,9 +7,12 @@
 #include <QWidget>
 
 class QComboBox;
+class QBoxLayout;
+class QFormLayout;
 class QLabel;
 class QPushButton;
 class QTimer;
+class QResizeEvent;
 
 class CategoryLineEdit final : public QLineEdit {
 	Q_OBJECT
@@ -36,7 +39,8 @@ public:
 
 private slots:
 	void updateLoginState(bool loggedIn);
-	void showSettings(const BroadcastSettings &settings);
+	void showUserProfile(const QString &channelName);
+	void showSettings(const BroadcastSettings &settings, bool afterApply);
 	void showCategories(const QString &query, const QVector<ChzzkCategory> &categories);
 	void applyChanges();
 	void clearCategory();
@@ -45,8 +49,10 @@ private slots:
 	void showUpdate(const UpdateInfo &info);
 
 private:
+	void resizeEvent(QResizeEvent *event) override;
 	void buildUi();
 	void connectUi();
+	void updateResponsiveLayout();
 	void updateControls();
 	void scheduleCategorySearch();
 	void resetCategorySelection(bool removeCategory);
@@ -55,6 +61,10 @@ private:
 
 	ChzzkApiClient client_;
 	UpdateChecker updateChecker_;
+	QBoxLayout *accountLayout_ = nullptr;
+	QBoxLayout *updateLayout_ = nullptr;
+	QBoxLayout *actionLayout_ = nullptr;
+	QFormLayout *formLayout_ = nullptr;
 	QLabel *statusLabel_ = nullptr;
 	QLabel *messageLabel_ = nullptr;
 	QWidget *updateBanner_ = nullptr;
@@ -73,6 +83,7 @@ private:
 	QTimer *categoryTimer_ = nullptr;
 	QString selectedCategoryId_;
 	QString selectedCategoryType_;
+	QString channelName_;
 	UpdateInfo pendingUpdate_;
 	QString promptedUpdateVersion_;
 	bool loggedIn_ = false;

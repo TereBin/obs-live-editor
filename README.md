@@ -38,6 +38,8 @@ OBS Studio 안에서 치지직 방송 제목, 카테고리, 태그를 조회하�
 - 카테고리 검색, 선택 및 제거
 - 태그 조회, 변경 및 전체 제거
 - OAuth 로그인과 Access Token 자동 갱신
+- 현재 로그인한 치지직 채널명 표시
+- 도크 너비에 맞춘 반응형 레이아웃
 - Windows DPAPI를 이용한 로컬 토큰 암호화
 - Windows Schannel 기반 HTTPS 통신
 - 로그아웃 시 치지직 토큰 폐기 요청
@@ -73,7 +75,7 @@ cmake --install build_x64 --config RelWithDebInfo --prefix release/RelWithDebInf
 직접 빌드한 플러그인을 배포하려면 치지직 개발자 센터에서 애플리케이션을 등록하고 Cloudflare Worker를 배포해야 합니다.
 
 1. 로그인 리디렉션 URL을 `http://127.0.0.1:20132/callback`으로 설정합니다.
-2. API Scope에서 방송 설정 조회와 방송 설정 변경을 활성화합니다.
+2. API Scope에서 유저 정보 조회, 방송 설정 조회와 방송 설정 변경을 활성화합니다.
 3. `worker/wrangler.jsonc`의 Worker 이름과 필요 설정을 확인합니다.
 4. Worker를 배포하고 Secret을 등록합니다.
 

@@ -25,6 +25,7 @@ public:
 	bool isLoggedIn() const { return !tokens_.isEmpty(); }
 	void beginLogin();
 	void logout();
+	void loadUserProfile();
 	void loadSettings();
 	void searchCategories(const QString &query);
 	void updateSettings(const BroadcastSettings &settings, bool removeCategory);
@@ -32,7 +33,8 @@ public:
 signals:
 	void loginStateChanged(bool loggedIn);
 	void busyChanged(bool busy);
-	void settingsLoaded(const BroadcastSettings &settings);
+	void userProfileLoaded(const QString &channelName);
+	void settingsLoaded(const BroadcastSettings &settings, bool afterApply);
 	void categoriesLoaded(const QString &query, const QVector<ChzzkCategory> &categories);
 	void operationSucceeded(const QString &message);
 	void operationFailed(const QString &message);
@@ -53,6 +55,7 @@ private:
 	void refreshAccessToken();
 	void finishTokenRequest(QNetworkReply *reply);
 	bool saveTokens(const QJsonObject &object);
+	void loadSettingsInternal(bool afterApply);
 	void fail(const QString &message);
 	void beginOperation();
 	void endOperation();
