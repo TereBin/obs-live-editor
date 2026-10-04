@@ -38,7 +38,7 @@
     },
   "name": "obs-live-editor",
   "displayName": "Live Editor for OBS",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "TereBin",
   "website": "https://github.com/TereBin/obs-live-editor",
   "email": "TereBin@users.noreply.github.com"

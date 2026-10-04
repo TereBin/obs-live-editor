@@ -19,3 +19,11 @@ struct UpdateInfo {
 
 	bool blocksUse() const { return level == UpdateLevel::Required || level == UpdateLevel::Security; }
 };
+
+struct NoticeInfo {
+	QString id;
+	QString title;
+	QString message;
+	QUrl url;
+	QString level;
+};

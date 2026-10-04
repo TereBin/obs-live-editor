@@ -47,6 +47,7 @@ private slots:
 	void showSuccess(const QString &message);
 	void showError(const QString &message);
 	void showUpdate(const UpdateInfo &info);
+	void showNotice(const NoticeInfo &info);
 
 private:
 	void resizeEvent(QResizeEvent *event) override;
@@ -63,11 +64,16 @@ private:
 	UpdateChecker updateChecker_;
 	QBoxLayout *accountLayout_ = nullptr;
 	QBoxLayout *updateLayout_ = nullptr;
+	QBoxLayout *noticeLayout_ = nullptr;
 	QBoxLayout *actionLayout_ = nullptr;
 	QFormLayout *formLayout_ = nullptr;
 	QLabel *statusLabel_ = nullptr;
 	QLabel *messageLabel_ = nullptr;
 	QWidget *updateBanner_ = nullptr;
+	QWidget *noticeBanner_ = nullptr;
+	QLabel *noticeLabel_ = nullptr;
+	QPushButton *openNoticeButton_ = nullptr;
+	QPushButton *dismissNoticeButton_ = nullptr;
 	QLabel *updateLabel_ = nullptr;
 	QPushButton *downloadUpdateButton_ = nullptr;
 	QPushButton *skipUpdateButton_ = nullptr;
@@ -85,6 +91,7 @@ private:
 	QString selectedCategoryType_;
 	QString channelName_;
 	UpdateInfo pendingUpdate_;
+	NoticeInfo pendingNotice_;
 	QString promptedUpdateVersion_;
 	bool loggedIn_ = false;
 	bool busy_ = false;

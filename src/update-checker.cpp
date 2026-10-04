@@ -49,6 +49,9 @@ QString UpdateChecker::settingsPath() const
 bool UpdateChecker::checkedRecently() const
 {
 	QSettings settings(settingsPath(), QSettings::IniFormat);
+	if (settings.value(QStringLiteral("updates/lastCheckedVersion")).toString() !=
+	    QString::fromUtf8(PLUGIN_VERSION))
+		return false;
 	const qint64 lastCheckedAt = settings.value(QStringLiteral("updates/lastCheckedAt"), 0).toLongLong();
 	return lastCheckedAt > QDateTime::currentSecsSinceEpoch() - kCheckIntervalSeconds;
 }
@@ -74,6 +77,7 @@ void UpdateChecker::checkForUpdates(bool force)
 		QSettings settings(settingsPath(), QSettings::IniFormat);
 		QDir().mkpath(QFileInfo(settings.fileName()).absolutePath());
 		settings.setValue(QStringLiteral("updates/lastCheckedAt"), QDateTime::currentSecsSinceEpoch());
+		settings.setValue(QStringLiteral("updates/lastCheckedVersion"), QString::fromUtf8(PLUGIN_VERSION));
 		handleManifest(body);
 	});
 }
@@ -85,6 +89,36 @@ void UpdateChecker::skipVersion(const QString &version)
 	settings.setValue(QStringLiteral("updates/skippedVersion"), version);
 }
 
+void UpdateChecker::dismissNotice(const QString &id)
+{
+	QSettings settings(settingsPath(), QSettings::IniFormat);
+	QDir().mkpath(QFileInfo(settings.fileName()).absolutePath());
+	settings.setValue(QStringLiteral("notices/dismissedId"), id);
+}
+
+void UpdateChecker::handleNotice(const QJsonObject &object)
+{
+	const QJsonObject notice = object.value(QStringLiteral("notice")).toObject();
+	NoticeInfo info;
+	info.id = notice.value(QStringLiteral("id")).toString().trimmed();
+	info.title = notice.value(QStringLiteral("title")).toString().trimmed();
+	info.message = notice.value(QStringLiteral("message")).toString().trimmed();
+	info.url = QUrl(notice.value(QStringLiteral("url")).toString());
+	info.level = notice.value(QStringLiteral("level")).toString().trimmed().toLower();
+	if (info.id.isEmpty() || info.message.isEmpty())
+		return;
+
+	const QDateTime expiresAt =
+		QDateTime::fromString(notice.value(QStringLiteral("expiresAt")).toString(), Qt::ISODate);
+	if (expiresAt.isValid() && expiresAt <= QDateTime::currentDateTimeUtc())
+		return;
+
+	QSettings settings(settingsPath(), QSettings::IniFormat);
+	if (settings.value(QStringLiteral("notices/dismissedId")).toString() == info.id)
+		return;
+	emit noticeAvailable(info);
+}
+
 void UpdateChecker::handleManifest(const QByteArray &body)
 {
 	QJsonParseError parseError;
@@ -93,6 +127,7 @@ void UpdateChecker::handleManifest(const QByteArray &body)
 		return;
 
 	const QJsonObject object = document.object();
+	handleNotice(object);
 	UpdateInfo info;
 	info.latestVersion = object.value(QStringLiteral("latestVersion")).toString();
 	info.minimumVersion = object.value(QStringLiteral("minimumSupportedVersion")).toString();

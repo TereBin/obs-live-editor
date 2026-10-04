@@ -65,7 +65,8 @@ test("signed values round trip", async () => {
 
 test("tampered values are rejected", async () => {
   const value = await createSignedValue({ purpose: "oauth-state", exp: Date.now() + 10_000 }, secret);
-  const tampered = `${value.slice(0, -1)}${value.endsWith("a") ? "b" : "a"}`;
+  const [payload, signature] = value.split(".");
+  const tampered = `${payload}.${signature.startsWith("a") ? "b" : "a"}${signature.slice(1)}`;
   assert.equal(await verifySignedValue(tampered, secret, "oauth-state"), null);
 });
 

@@ -5,6 +5,8 @@
 #include <QNetworkAccessManager>
 #include <QObject>
 
+class QJsonObject;
+
 class UpdateChecker final : public QObject {
 	Q_OBJECT
 
@@ -13,14 +15,17 @@ public:
 
 	void checkForUpdates(bool force = false);
 	void skipVersion(const QString &version);
+	void dismissNotice(const QString &id);
 
 signals:
 	void updateAvailable(const UpdateInfo &info);
+	void noticeAvailable(const NoticeInfo &info);
 
 private:
 	QString settingsPath() const;
 	bool checkedRecently() const;
 	void handleManifest(const QByteArray &body);
+	void handleNotice(const QJsonObject &object);
 
 	QNetworkAccessManager network_;
 };

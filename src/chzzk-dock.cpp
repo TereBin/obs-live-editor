@@ -72,10 +72,19 @@ void ChzzkDock::connectUi()
 			showUpdate(info);
 		});
 	connect(&updateChecker_, &UpdateChecker::updateAvailable, this, &ChzzkDock::showUpdate);
+	connect(&updateChecker_, &UpdateChecker::noticeAvailable, this, &ChzzkDock::showNotice);
 	connect(downloadUpdateButton_, &QPushButton::clicked, this, &ChzzkDock::openUpdatePage);
 	connect(skipUpdateButton_, &QPushButton::clicked, this, [this]() {
 		updateChecker_.skipVersion(pendingUpdate_.latestVersion);
 		updateBanner_->hide();
+	});
+	connect(openNoticeButton_, &QPushButton::clicked, this, [this]() {
+		if (pendingNotice_.url.scheme() == QStringLiteral("https"))
+			QDesktopServices::openUrl(pendingNotice_.url);
+	});
+	connect(dismissNoticeButton_, &QPushButton::clicked, this, [this]() {
+		updateChecker_.dismissNotice(pendingNotice_.id);
+		noticeBanner_->hide();
 	});
 	connect(&client_, &ChzzkApiClient::busyChanged, this, [this](bool busy) {
 		busy_ = busy;
@@ -116,6 +125,20 @@ void ChzzkDock::buildUi()
 	accountLayout_->addWidget(loginButton_);
 	accountLayout_->addWidget(logoutButton_);
 	root->addLayout(accountLayout_);
+
+	noticeBanner_ = new QWidget(this);
+	noticeLayout_ = new QHBoxLayout(noticeBanner_);
+	noticeLayout_->setContentsMargins(0, 0, 0, 0);
+	noticeLabel_ = new QLabel(noticeBanner_);
+	noticeLabel_->setWordWrap(true);
+	noticeLabel_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+	openNoticeButton_ = new QPushButton(QStringLiteral("자세히"), noticeBanner_);
+	dismissNoticeButton_ = new QPushButton(QStringLiteral("확인"), noticeBanner_);
+	noticeLayout_->addWidget(noticeLabel_, 1);
+	noticeLayout_->addWidget(openNoticeButton_);
+	noticeLayout_->addWidget(dismissNoticeButton_);
+	noticeBanner_->hide();
+	root->addWidget(noticeBanner_);
 
 	updateBanner_ = new QWidget(this);
 	updateLayout_ = new QHBoxLayout(updateBanner_);
@@ -264,14 +287,27 @@ void ChzzkDock::resizeEvent(QResizeEvent *event)
 
 void ChzzkDock::updateResponsiveLayout()
 {
-	if (!accountLayout_ || !updateLayout_ || !actionLayout_ || !formLayout_)
+	if (!accountLayout_ || !noticeLayout_ || !updateLayout_ || !actionLayout_ || !formLayout_)
 		return;
 	const bool compact = width() < kCompactLayoutWidth;
 	const QBoxLayout::Direction direction = compact ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight;
 	accountLayout_->setDirection(direction);
+	noticeLayout_->setDirection(direction);
 	updateLayout_->setDirection(direction);
 	actionLayout_->setDirection(direction);
 	formLayout_->setRowWrapPolicy(compact ? QFormLayout::WrapAllRows : QFormLayout::DontWrapRows);
+}
+
+void ChzzkDock::showNotice(const NoticeInfo &info)
+{
+	pendingNotice_ = info;
+	const QString title = info.title.isEmpty() ? QStringLiteral("공지") : info.title;
+	noticeLabel_->setText(QStringLiteral("%1: %2").arg(title, info.message));
+	openNoticeButton_->setVisible(info.url.scheme() == QStringLiteral("https"));
+	noticeBanner_->show();
+
+	if (info.level == QStringLiteral("important") || info.level == QStringLiteral("critical"))
+		QMessageBox::warning(this, title, info.message);
 }
 
 void ChzzkDock::showCategories(const QString &query, const QVector<ChzzkCategory> &categories)

@@ -5,9 +5,9 @@
   "compatibility_date": "2026-09-01",
   "vars": {
     "MINIMUM_CLIENT_VERSION": "0.1.0",
-    "LATEST_CLIENT_VERSION": "0.2.0",
+    "LATEST_CLIENT_VERSION": "0.3.0",
     "CLIENT_UPDATE_LEVEL": "optional",
-    "CLIENT_UPDATE_MESSAGE": "새 버전을 사용할 수 있습니다.",
+    "CLIENT_UPDATE_MESSAGE": "현재 사용중인 치지직 API 기능의 갱신으로 인해 기존 API가 잠시 멈춘 상태로, INVALID_TOKEN 에러가 뜰 수 있습니다. 위 에러가 뜬다면 기존 방식대로 치지직에서 직접 수정하시면 됩니다.",
     "CLIENT_RELEASE_URL": "https://github.com/TereBin/obs-live-editor-releases/releases/latest"
   }
 }
